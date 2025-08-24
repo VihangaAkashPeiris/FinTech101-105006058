@@ -278,4 +278,4 @@ print(f"Prediction: {prediction}")
 # of the stock price changes to detect some patterns with the trend of
 # the stock price:
 # https://github.com/jason887/Using-Deep-Learning-Neural-Networks-and-Candlestick-Chart-Representation-to-Predict-Stock-Market
-# Can you combine these different techniques for a better prediction??
+# Can you combine these different techniques for a better prediction??cd ..
