@@ -9,7 +9,7 @@ import yfinance as yf
 from datetime import datetime, timedelta
 from pathlib import Path
 from sklearn.preprocessing import MinMaxScaler
-
+#load
 def load_data_yf(
     ticker: str,
     start: str,
