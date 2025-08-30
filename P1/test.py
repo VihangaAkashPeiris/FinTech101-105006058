@@ -1,192 +1,152 @@
+import pandas as pd
 import numpy as np
+import yfinance as yf
+from datetime import datetime
 
-import matplotlib.pyplot as plt
+def load_data_yf(ticker: str ,start: str ,end: str, interval: str = "1d" , auto_adjust: bool = False) ->pd.DataFrame:
+    df = yf.download (ticker,start = start, end = end , interval = interval, auto_adjust=auto_adjust, progress = False)
+    
+    if df is None or df.empty:
+        raise ValueError(f"no data returned for {ticker} between {start} and {end}.")
+    # If yfinance returned MultiIndex columns, keep only this ticker (or flatten)
+    if isinstance(df.columns, pd.MultiIndex):
+    # Preferred: select the columns for THIS ticker level
+    # yfinance usually uses level 0 = field, level 1 = ticker
+    # but some versions swap; try both safely.
+        try:
+        # try last level as ticker
+            df = df.xs(key=ticker, axis=1, level=-1)
+        except (KeyError, ValueError):
+            try:
+            # try first level as ticker
+                df = df.xs(key=ticker, axis=1, level=0)
+            except (KeyError, ValueError):
+            # fallback: just take the first element of each tuple ('Open','CBA.AX') -> 'Open'
+                df.columns = [str(col[0]) for col in df.columns]
 
-from stock_prediction import create_model, load_data
-from parameters import *
+    
+    colmap = {
+    "Open": "open",
+    "High": "high",
+    "Low": "low",
+    "Close": "close",
+    "Adj Close": "adjclose",
+    "Volume": "volume",
+    }
+    df.rename(columns=colmap, inplace=True)
 
-
-def plot_graph(test_df):
-    """
-    This function plots true close price along with predicted close price
-    with blue and red colors respectively
-    """
-    plt.plot(test_df[f'true_adjclose_{LOOKUP_STEP}'], c='b')
-    plt.plot(test_df[f'adjclose_{LOOKUP_STEP}'], c='r')
-    plt.xlabel("Days")
-    plt.ylabel("Price")
-    plt.legend(["Actual Price", "Predicted Price"])
-    plt.show()
-def get_final_df(model, data):
-    """
-    Build a dataframe with actual vs predicted prices for the test set.
-    - Flattens MultiIndex columns (uses level 0)
-    - Normalizes names to lowercase
-    - Ensures 'adjclose' exists (fallbacks)
-    - Forces numeric dtypes
-    - Vectorized profit computation
-    """
-    import numpy as np
-    import pandas as pd
-
-    def _series_from_aliases(df, aliases):
-        """Return the first matching column as a Series, even if duplicates exist."""
-        cols = [str(c).lower() for c in df.columns]
-        for alias in aliases:
-            if alias in cols:
-                idxs = [i for i, c in enumerate(cols) if c == alias]
-                s = df.iloc[:, idxs[0]]
-                if isinstance(s, pd.DataFrame):
-                    s = s.iloc[:, 0]
-                return s.squeeze()
-        raise KeyError(f"None of aliases {aliases} found in columns: {list(df.columns)}")
-
-    X_test = data["X_test"]
-    y_test = data["y_test"]
-
-    # Predict
-    y_pred = model.predict(X_test, verbose=0)
-
-    # Invert scaling if needed
-    if SCALE:
-        y_test = np.squeeze(
-            data["column_scaler"]["adjclose"].inverse_transform(np.expand_dims(y_test, axis=0))
-        )
-        y_pred = np.squeeze(
-            data["column_scaler"]["adjclose"].inverse_transform(y_pred)
-        )
+    if "adjclose" not in df.columns:
+        if auto_adjust and "close" in df.columns:
+            df["adjclose"] = df["close"]
+        else:
+            df["adjclose"] = df.get("close", pd.NA)
+    
+    df = df.sort_index()
+    # make a plain 'date' column (helpful later for splits/merges)
+    if getattr(df.index, "tz", None) is not None:
+        df["date"] = df.index.tz_localize(None)
     else:
-        y_test = np.squeeze(y_test)
-        y_pred = np.squeeze(y_pred)
+        df["date"] = df.index
 
-    # Work on a copy
-    test_df = data["test_df"].copy()
+    # coerce numerics (avoids stray strings down the line)
+    for c in ("open", "high", "low", "close", "adjclose", "volume"):
+        if c in df.columns:
+            df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    # --- FLATTEN MultiIndex columns (take level 0) ---
-    if isinstance(test_df.columns, pd.MultiIndex):
-        test_df.columns = [str(t[0]) for t in test_df.columns]
-
-    # --- Normalize to lowercase, drop dups ---
-    test_df.columns = [str(c).lower() for c in test_df.columns]
-    test_df = test_df.loc[:, ~test_df.columns.duplicated(keep="first")]
-
-    # Ensure base 'adjclose' exists
-    if "adjclose" not in test_df.columns:
-        if "adj close" in test_df.columns:
-            test_df["adjclose"] = test_df["adj close"]
-        elif "close" in test_df.columns:
-            test_df["adjclose"] = test_df["close"]
-
-    # Attach predictions/ground truth
-    test_df[f"adjclose_{LOOKUP_STEP}"] = np.asarray(y_pred, dtype=float)
-    test_df[f"true_adjclose_{LOOKUP_STEP}"] = np.asarray(y_test, dtype=float)
-
-    # Robust Series selection → numeric float
-    adj_s  = _series_from_aliases(test_df, ["adjclose", "adj close", "close"])
-    pred_s = _series_from_aliases(test_df, [f"adjclose_{LOOKUP_STEP}"])
-    true_s = _series_from_aliases(test_df, [f"true_adjclose_{LOOKUP_STEP}"])
-
-    adj_s  = pd.to_numeric(adj_s, errors="coerce").astype(float)
-    pred_s = pd.to_numeric(pred_s, errors="coerce").astype(float)
-    true_s = pd.to_numeric(true_s, errors="coerce").astype(float)
-
-    # Write back cleaned series
-    test_df["adjclose"] = adj_s
-    test_df[f"adjclose_{LOOKUP_STEP}"] = pred_s
-    test_df[f"true_adjclose_{LOOKUP_STEP}"] = true_s
-
-    # Sort by time
-    test_df.sort_index(inplace=True)
-
-    # Vectorized profits
-    cur  = test_df["adjclose"].to_numpy()
-    pred = test_df[f"adjclose_{LOOKUP_STEP}"].to_numpy()
-    true = test_df[f"true_adjclose_{LOOKUP_STEP}"].to_numpy()
-
-    test_df["buy_profit"]  = np.where(pred > cur,  true - cur,  0.0)
-    test_df["sell_profit"] = np.where(pred < cur,  cur - true,  0.0)
-
-    return test_df
+    # handle NANs by dropping rows
+    df.dropna(subset=["open", "high", "low", "close", "adjclose", "volume"], inplace=True)
 
 
+    return df
+
+
+#############################################
+def date_format_check (date_text):
+    try:
+        datetime.strptime(date_text, "%Y-%m-%d") 
+        return True
+    except:
+        return False
+    
+
+
+start = str(input ("Please enter Start date (yyyy-mm-dd) :"))
+if not (date_format_check(start)):
+    raise ValueError("Start date must be in yyyy-mm-dd format")
+
+end = str(input("Please enter the end date (yyyy-mm-dd):"))
+if not (date_format_check(end) ):
+    raise ValueError("End date must be in yyyy-mm-dd format")
+
+#############################################
+
+def split_by_ratio(df: pd.DataFrame, test_size:float ):
+    n = len(df)
+    if n < 2:
+        raise ValueError("Not enough rows to split.")
+
+    if not (0.0 < test_size < 0.9):
+        raise ValueError("test_size must be between 0 and 0.9.")
+
+    split_idx = int((1.0 - test_size) * n)
+    if split_idx <= 0 or split_idx >= n:
+        raise ValueError("Split index produced empty train or test set; adjust test_size.")
+
+    train_df = df.iloc[:split_idx].copy()
+    test_df  = df.iloc[split_idx:].copy()
+
+    return train_df, test_df
+#############################################################
+def split_by_date(df: pd.DataFrame, split_date : str):
+    cutoff = pd.to_datetime(split_date)
+
+    train_df = df[df.index<cutoff]
+    test_df = df[df.index>=cutoff]
+
+    return train_df,test_df
+
+
+##############################################################
+def split_by_random(df:pd.DataFrame, low =0.15, high =0.30, random_state=314):
+    rng = np.random.default_rng(random_state)
+    test_size = float(rng.uniform(low, high)) 
+# Randomly assign rows to train/test using the chosen ratio
+    mask = rng.random(len(df)) >= test_size       # True -> train, False -> test
+    train_df = df[mask].sort_index().copy()
+    test_df  = df[~mask].sort_index().copy()
+    if len(train_df) == 0 or len(test_df) == 0:
+        raise ValueError("Split produced an empty set. Adjust low/high or check data size.")
+
+    return train_df, test_df
 
 
 
+df = load_data_yf("CBA.AX" , start = start, end = end)
+
+print ("what method would you like to choose to split the data into train/test?\n1: By Ratio\n2: By Date\n3: By Random")
+option=int(input("Select from the above options:"))
+
+if option == 1:
+    test_size=float(input("Please Enter the test ratio (0.2)->20% : "))
+    train_df, test_df=split_by_ratio(df,test_size)
+    print(f"No of train data :{ len(train_df)}")
+    print(f"No of train data :{ len(test_df)}")
+    print("Train period:", train_df.index.min().date(), "→", train_df.index.max().date())
+    print("Test period:", test_df.index.min().date(), "→", test_df.index.max().date())
+if option == 2:
+    split_date = str(input("Please enter the starting date of test (yyyy-mm-dd) :"))
+    train_df,test_df = split_by_date(df,split_date)
+    print(f"No of train data :{ len(train_df)}")
+    print(f"No of train data :{ len(test_df)}")
+    print("Train period:", train_df.index.min().date(), "→", train_df.index.max().date())
+    print("Test period:", test_df.index.min().date(), "→", test_df.index.max().date())
+if option == 3:
+    train_df,test_df = split_by_random(df,low =0.15, high =0.30, random_state=314)
+    print(f"No of train data :{ len(train_df)}")
+    print(f"No of train data :{ len(test_df)}")
+    print("Train period:", train_df.index.min().date(), "→", train_df.index.max().date())
+    print("Test period:", test_df.index.min().date(), "→", test_df.index.max().date())
 
 
-def predict(model, data):
-    # retrieve the last sequence from data
-    last_sequence = data["last_sequence"][-N_STEPS:]
-    # expand dimension
-    last_sequence = np.expand_dims(last_sequence, axis=0)
-    # get the prediction (scaled from 0 to 1)
-    prediction = model.predict(last_sequence)
-    # get the price (by inverting the scaling)
-    if SCALE:
-        predicted_price = data["column_scaler"]["adjclose"].inverse_transform(prediction)[0][0]
-    else:
-        predicted_price = prediction[0][0]
-    return predicted_price
-
-
-# load the data
-data = load_data(ticker, N_STEPS, scale=SCALE, split_by_date=SPLIT_BY_DATE,
-                shuffle=SHUFFLE, lookup_step=LOOKUP_STEP, test_size=TEST_SIZE,
-                feature_columns=FEATURE_COLUMNS)
-
-# construct the model
-model = create_model(N_STEPS, len(FEATURE_COLUMNS), loss=LOSS, units=UNITS, cell=CELL, n_layers=N_LAYERS,
-                    dropout=DROPOUT, optimizer=OPTIMIZER, bidirectional=BIDIRECTIONAL)
-
-# load optimal model weights from results folder
-import glob, os
-
-weights_files = glob.glob("results/*.weights.h5")
-if not weights_files:
-    raise FileNotFoundError("No weights found in results/")
-model_path = max(weights_files, key=os.path.getmtime)  # pick most recent
-print("Loading:", model_path)
-model.load_weights(model_path)
-
-# evaluate the model
-loss, mae = model.evaluate(data["X_test"], data["y_test"], verbose=0)
-# calculate the mean absolute error (inverse scaling)
-if SCALE:
-    mean_absolute_error = data["column_scaler"]["adjclose"].inverse_transform([[mae]])[0][0]
-else:
-    mean_absolute_error = mae
-
-# get the final dataframe for the testing set
-final_df = get_final_df(model, data)
-# predict the future price
-future_price = predict(model, data)
-# we calculate the accuracy by counting the number of positive profits
-accuracy_score = (len(final_df[final_df['sell_profit'] > 0]) + len(final_df[final_df['buy_profit'] > 0])) / len(final_df)
-# calculating total buy & sell profit
-total_buy_profit  = final_df["buy_profit"].sum()
-total_sell_profit = final_df["sell_profit"].sum()
-# total profit by adding sell & buy together
-total_profit = total_buy_profit + total_sell_profit
-# dividing total profit by number of testing samples (number of trades)
-profit_per_trade = total_profit / len(final_df)
-# printing metrics
-print(f"Future price after {LOOKUP_STEP} days is {future_price:.2f}$")
-print(f"{LOSS} loss:", loss)
-print("Mean Absolute Error:", mean_absolute_error)
-print("Accuracy score:", accuracy_score)
-print("Total buy profit:", total_buy_profit)
-print("Total sell profit:", total_sell_profit)
-print("Total profit:", total_profit)
-print("Profit per trade:", profit_per_trade)
-# plot true/pred prices graph
-plot_graph(final_df)
-print(final_df.tail(10))
-# save the final dataframe to csv-results folder
-csv_results_folder = "csv-results"
-if not os.path.isdir(csv_results_folder):
-    os.mkdir(csv_results_folder)
-csv_filename = os.path.join(csv_results_folder, model_name + ".csv")
-final_df.to_csv(csv_filename)
-import matplotlib.pyplot as plt
-
-# Plot Actual vs Predicted (LOOKUP_STEP-ahead)
+print(df.head())
+print(df.tail())
