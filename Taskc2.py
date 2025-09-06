@@ -23,7 +23,7 @@ def Loading_and_processing(
     *, #. The begining of key words only arguments.
     interval: str = "1d", #Time period of the data per day (1d), per month (1m)or per year (1y).
     auto_adjust: bool = False, # To avoid the auto adjusting because we need the adj close column
-    split_method: str = "ratio",   # this is the split method and can be one of the followings:"ratio" | "date" | "random"
+    split_method: str = "ratio",   # this is the split method and can be one of the follow  ings:"ratio" | "date" | "random"
     test_size: float = 0.2,        # split ratio for test data under split_mothod="ratio".
     split_date: str | None = None, # split date for split_method="date"
     low: float = 0.15,             # the lowest value that can be generated randomly for  split_method="random"
@@ -79,6 +79,7 @@ def Loading_and_processing(
             ticker, start=s, end=e,
             interval=interval, auto_adjust=auto_adjust, progress=False
         )
+        
         return _normalize(raw)
 
     # ----------This part will store the data locally and load when neccessary--------
@@ -98,7 +99,7 @@ def Loading_and_processing(
     else:
         cached = pd.DataFrame()
 
-    # Determine if we need to fetch extra data
+    # Determine i`f we need to fetch extra data
     # This will check whether the dataframe is empty or the request date is not in the dataframe and it should locate before the first index in the data frame.
     need_left  = cached.empty or req_start < cached.index.min()
     # This will check whether the dataframe is empty or the request date is not in the dataframe and it should locate after  the last index in the data frame.
@@ -166,7 +167,7 @@ def Loading_and_processing(
 
     # --------------- scaling ---------------
     # This part will do the scaling of the feature columns usig the minmaxscaler method.
-    scalers: dict[str, MinMaxScaler] = {}
+    scalers: dict[str, MinMaxScaler] = {} # dictionary that maps column names to MinMaxScaler objects.
     if scale:
         # default to common OHLCV columns that exist
         if feature_cols is None:
@@ -187,71 +188,72 @@ def Loading_and_processing(
 
     return train_df, test_df, df, scalers
 
-
+if __name__ == "__main__": 
 # this will ensure user enters the date in a  correct format
-def _date_validation(s: str) -> bool:
-    try:
-        datetime.strptime(s, "%Y-%m-%d")
-        return True
-    except Exception:
-        return False
+    def _date_validation(s: str) -> bool:
+        try:
+            datetime.strptime(s, "%Y-%m-%d")
+            return True
+        except Exception:
+            return False
 
 
 
 
 # Promt the user to enter the start and end dates.
-start = input("Please enter Start date (yyyy-mm-dd): ")
-if not _date_validation(start):
-    raise ValueError("Start date must be in yyyy-mm-dd format")
-end = input("Please enter the end date (yyyy-mm-dd): ")
-if not _date_validation(end):
-    raise ValueError("End date must be in yyyy-mm-dd format")
+    start = input("Please enter Start date (yyyy-mm-dd): ")
+    if not _date_validation(start):
+        raise ValueError("Start date must be in yyyy-mm-dd format")
+    end = input("Please enter the end date (yyyy-mm-dd): ")
+    if not _date_validation(end):
+        raise ValueError("End date must be in yyyy-mm-dd format")
 
 # This will ask the  user whether they want to scale feature collumns or not
-use_scale = input("Scale features to 0–1? (y/N): ").strip().lower() == "y"
+    use_scale = input("Scale features to 0–1? (y/N): ").strip().lower() == "y"
 # leave blank to auto-pick common OHLCV columns; or comma-separated list (e.g., adjclose,volume)
-cols_in = input("Columns to scale (blank=auto; e.g. adjclose,open,high,low,close,volume): ").strip()
-feature_cols = [c.strip() for c in cols_in.split(",")] if cols_in else None
+    cols_in = input("Columns to scale (blank=auto; e.g. adjclose,open,high,low,close,volume): ").strip()
+    feature_cols = [c.strip() for c in cols_in.split(",")] if cols_in else None
 # This will ask the user to choose a data splitting method
-print("Choose split method:\n1: By Ratio\n2: By Date\n3: By Random")
-option = int(input("Select from the above options: "))
+    print("Choose split method:\n1: By Ratio\n2: By Date\n3: By Random")
+    option = int(input("Select from the above options: "))
 # Common wealth Bank stocks
-ticker = "CBA.AX"
+    ticker = "CBA.AX"
 # If user choose the split method "ratio" this will ask the ration between 0.0-0.9 to split the data.
-if option == 1:
-    test_ratio = float(input("Please enter the test ratio (e.g., 0.2 for 20%): "))
-    train_df, test_df, df, scalers = Loading_and_processing(
+    if option == 1:
+        test_ratio = float(input("Please enter the test ratio (e.g., 0.2 for 20%): "))
+        train_df, test_df, df, scalers = Loading_and_processing(
         ticker, start, end,
         split_method="ratio", test_size=test_ratio,
         scale=use_scale, feature_cols=feature_cols
     )
 # if user choose the split method - "date" it will ask the users to enter a prefer starting date for  test data
-elif option == 2:
-    split_date = input("Please enter the starting date of test (yyyy-mm-dd): ")
-    train_df, test_df, df, scalers = Loading_and_processing(
-        ticker, start, end,
-        split_method="date", split_date=split_date,
-        scale=use_scale, feature_cols=feature_cols
+    elif option == 2:
+        split_date = input("Please enter the starting date of test (yyyy-mm-dd): ")
+        train_df, test_df, df, scalers = Loading_and_processing(
+            ticker, start, end,
+            split_method="date", split_date=split_date,
+            scale=use_scale, feature_cols=feature_cols
     )
 # If user choose the split method = "random" it will randomly split the dataframe
-elif option == 3:
-    train_df, test_df, df, scalers = Loading_and_processing(
-        ticker, start, end,
-        split_method="random", low=0.15, high=0.30, random_state=314,
-        scale=use_scale, feature_cols=feature_cols
+    elif option == 3:
+        train_df, test_df, df, scalers = Loading_and_processing(
+            ticker, start, end,
+            split_method="random", low=0.15, high=0.30, random_state=314,
+            scale=use_scale, feature_cols=feature_cols
     )
-else:
-    raise ValueError("Invalid option. Choose 1, 2, or 3.")
+    else:
+        raise ValueError("Invalid option. Choose 1, 2, or 3.")
 
 # these print statements were used to check the accuracy of the splitted methods
-print(f"No of train rows: {len(train_df)}")
-print(f"No of test  rows: {len(test_df)}")
-print("Train period:", train_df.index.min().date(), "→", train_df.index.max().date())
-print("Test  period:",  test_df.index.min().date(),  "→", test_df.index.max().date())
+    print(f"No of train rows: {len(train_df)}")
+    print(f"No of test  rows: {len(test_df)}")
+    print("Train period:", train_df.index.min().date(), "→", train_df.index.max().date())
+    print("Test  period:",  test_df.index.min().date(),  "→", test_df.index.max().date())
 # this will print the first and last five lined of the dataframe
-print("\nTrain head:\n", train_df.head())
-print("\nTest head:\n", test_df.head())
+    print("\nTrain head:\n", train_df.head())
+    print("\nTest head:\n", test_df.head())
 
 # If scaling was enabled, this wi;; show which columns were scaled
-if use_scale:
-    print("\nScalers available for columns:", list(scalers.keys()))
+    if use_scale:
+        print("\nScalers available for columns:", list(scalers.keys()))
+pass
