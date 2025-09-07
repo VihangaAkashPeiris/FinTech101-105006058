@@ -24,9 +24,8 @@ def candelstick_plot(ohlc_df,n : int ,type,title ,style ,ylabel ):
         "Close": "last",
         "Volume":"sum",
     })
-
     # Give a meaningful datetime index to the compressed candles:
-    # use the first date of each n-day block (you can also pick the last date if you prefer)
+    # use the first date of each n-day block 
     idx = ohlc_df.index[::n][:len(agg)]
     agg.index = idx
     # plot the data ,has declared the type, title, y axis lable and the style .
@@ -105,8 +104,17 @@ if __name__ == "__main__":
     })
     # ask the user for n value
     ninput=  int(input("Enter Trading period days :"))
+    print("Chart types -")
+    print("01. Candlestick Chart\n02. Boxplot Chart")
+    charttype = int(input("What chart would You prefer (enter the no)-"))
+
+
+    if (charttype==1):
     #call the candle plot function
-    boxplot(ohlc_df,n=ninput)
-    candelstick_plot(ohlc_df,n=ninput, type='candle',title = f"CBA.AX  Candelstick Chart - For  {ninput} Trading Days" ,style ='charles',ylabel  = 'Price ($)')
-    
+        candelstick_plot(ohlc_df,n=ninput, type='candle',
+                     title = f"CBA.AX  Candelstick Chart - For  {ninput} Trading Days" ,
+                     style ='charles',ylabel  = 'Price ($)')
+    else:
+    # call the box plot function
+        boxplot(ohlc_df,n=ninput)
     
