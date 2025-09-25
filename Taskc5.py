@@ -11,7 +11,7 @@ import matplotlib.pyplot as plt
 
 
 # Make sequences to input the model. input -- > [1,2,3,4,5] [6]
-def make_sequences_multi_step(series : pd.Series, lookback:int , lookahead:int =5):
+def make_sequences_multi_step(series : pd.Series, lookback:int , lookahead:int ):
     values = series.values.astype(float) # take the [adjclose] column and extact it as a numpy array and forces it to be float.
     n = len(values) #assigning the length of that numpy array to variable "n"
     num_samples= n - lookback - lookahead + 1 # this is the number of test cases that Model will perform. That means number of target values.
@@ -20,7 +20,7 @@ def make_sequences_multi_step(series : pd.Series, lookback:int , lookahead:int =
         raise ValueError (f"Not enough rows: need > lookback+lookahead-1, got {n}") # if there is no target then raise an error.
     
     #the below x and y creates numpy arrays filled with zeros and it specifies the shape of the arrray.
-    x = np.zeros ((num_samples , lookback,1),dtype=float )
+    x = np.zeros ((num_samples , lookback,feature_cols),dtype=float )
     y = np.zeros ((num_samples,lookahead),dtype=float)
 
     for i in range (num_samples):
@@ -28,6 +28,44 @@ def make_sequences_multi_step(series : pd.Series, lookback:int , lookahead:int =
         y [i,:] = values [i + lookback: lookback +lookahead + i ] # This fills the target value to the Y array
 
     return x,y # Return two arrays with train(x) and target(y).
+
+
+
+def make_sequences_multivariate(df:pd.DataFrame, lookback:int , lookahead:int = 1, targeted_col : int=0):
+    values = df.values.astype(float) # take the [adjclose] column and extact it as a numpy array and forces it to be float.
+    n, n_features = values.shape #assigning the length of that numpy array to variable "n"
+    num_samples= n - lookback - lookahead + 1 # this is the number of test cases that Model will perform. That means number of target values.
+
+    if (num_samples <= 0):
+        raise ValueError (f"Not enough rows: need > lookback+lookahead-1, got {n}") # if there is no target then raise an error.
+    
+    #the below x and y creates numpy arrays filled with zeros and it specifies the shape of the arrray.
+    x = np.zeros ((num_samples , lookback,n_features),dtype=float )
+    y = np.zeros ((num_samples,),dtype=float)
+
+    for i in range (num_samples):
+        x [i] = values [i: i+ lookback] # this fills the x array according to ith sample.
+        y [i] = values [i + lookback + lookahead - 1,targeted_col] # This fills the target value to the Y array
+
+    return x,y # Return two arrays with train(x) and target(y).
+def multistep_and_multivariate (df:pd.DataFrame, lookback:int, lookahead:int, targeted_col:int = 0):
+    values =  df.values.astype(float)
+    n,n_features = values.shape
+    num_samples = n - lookback- lookahead + 1
+    
+    if (num_samples <= 0):
+        raise ValueError (f"Not enough rows: need > lookback+lookahead-1, got {n}") # if there is no target then raise an error.
+    
+    x = np.zeros((num_samples,lookback,n_features),dtype=float)
+    y = np.zeros((num_samples,lookahead))
+    for i in range (num_samples):
+        x[i] = values [i: i+lookback, :]
+        y[i,:] = values [i + lookback: lookback +lookahead + i , targeted_col]
+
+
+    
+    return x,y
+
 if __name__ == "__main__":
     # set inputs for the function.
     ticker = "CBA.AX"
@@ -50,10 +88,18 @@ if __name__ == "__main__":
     print(train_df.head())
     print(test_df.tail())
 
-    # Sequences
-    X_train, y_train = make_sequences_multi_step(train_df["adjclose"], lookback=60, lookahead=5)
-    X_test,  y_test  = make_sequences_multi_step(test_df["adjclose"], lookback=60, lookahead=5)
+    kvalue =  int(input (" How many days would you prefer to predict ?"))
 
+    # Sequences
+    #X_train, y_train = make_sequences_multi_step(train_df["adjclose"], lookback=60, lookahead=kvalue)
+   # X_test,  y_test  = make_sequences_multi_step(test_df["adjclose"], lookback=60, lookahead=kvalue)
+
+
+    #X_train, y_train = make_sequences_multivariate(train_df[['adjclose', 'volume', 'open','close', 'high', 'low']], lookback=60, lookahead=1)
+    #X_test,  y_test  = make_sequences_multivariate(test_df[['adjclose', 'volume', 'open','close', 'high', 'low']], lookback=60, lookahead=1)
+    X_train, y_train = multistep_and_multivariate(train_df[['adjclose', 'volume', 'open','close', 'high', 'low']], lookback=60, lookahead=kvalue)
+    X_test,  y_test  = multistep_and_multivariate(test_df[['adjclose', 'volume', 'open','close', 'high', 'low']], lookback=60, lookahead=kvalue)
+    
     print("Train:", X_train.shape, y_train.shape)
     print("Test :", X_test.shape, y_test.shape)
 
@@ -78,7 +124,7 @@ if __name__ == "__main__":
     lookback = X_train.shape[1]
     model = build_the_model(Mtype, lookback=lookback,
                             n_layers=no_layers,
-                            units=Layer_size, dropout=0.3)
+                            units=Layer_size, dropout=0.3, dense_layers=kvalue)
 
     early_stop = tf.keras.callbacks.EarlyStopping(
         monitor="val_loss", patience=20, restore_best_weights=True
@@ -108,9 +154,9 @@ if __name__ == "__main__":
     data = {"Sample": range(len(y_test))}
 
     for h in range(horizon):
-        data[f"t+{h+1}_Actual"] = y_test[:, h]
-        data[f"t+{h+1}_Pred"]   = y_pred[:, h]
-        data[f" "] = [""] * len(y_test)   # spacer column
+        data[f"{h+1}_Actual"] = y_test[:, h]
+        data[f"{h+1}_Pred"]   = y_pred[:, h]
+        data[f"  "] = [""] * len(y_test)   # spacer column
 
     df_summary = pd.DataFrame(data)
 

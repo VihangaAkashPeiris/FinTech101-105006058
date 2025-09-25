@@ -24,10 +24,12 @@ def make_sequences(series : pd.Series, lookback:int , lookahead:int = 1):
 
     return x,y # Return two arrays with train(x) and target(y).
 # Funcion to build a DL Model.
-def build_the_model(Mtype, lookback:int,  n_layers : int, units:int , dropout:float) -> tf.keras.Model :
+#-------------------------------------------------------did add a new parameter denselayer remove it if u wanna run this file----------------------- 
+def build_the_model(Mtype, lookback:int,  n_layers : int, units:int , dropout:float, dense_layers = int) -> tf.keras.Model :
     model = Sequential() # This creates an empty model container where we can stack layers one after another
     # this add the layers to the model and specify which model and how many neurons will be there in the model and the input shape
-    model.add(Mtype(units, return_sequences = (n_layers > 1), input_shape  =(lookback,1))) 
+    #--------------------------------------changed this to no columns it was 1 before-----------------------------------------------
+    model.add(Mtype(units, return_sequences = (n_layers > 1), input_shape  =(lookback,6))) 
     model.add(Dropout(dropout)) # Randomly turns off some neurons to genaralize than just memorizing. (Prevent overfitting)
 
     # Do add the middle layers if there are more than two layers
@@ -38,8 +40,8 @@ def build_the_model(Mtype, lookback:int,  n_layers : int, units:int , dropout:fl
     if n_layers >1 :
         model.add (Mtype(units))
         model.add (Dropout(dropout))
-
-    model.add(Dense(1)) # Predict from learned patterns
+#==========================================================Changed the dense to 5 for Taskc5.py=====================================
+    model.add(Dense(dense_layers)) # Predict from learned patterns
     #This tells the model to learn using which optimizer, minimize MSE, and also show MAE while training.
     model.compile(optimizer="rmsprop", loss="mse", metrics=["mae"])
 
@@ -94,63 +96,63 @@ if __name__ == "__main__":
     print(test_df.tail())    # last 5 rows
 
 
-X_train, y_train = make_sequences(train_df["adjclose"], lookback = 60, lookahead=1) #Make sequences from train dataframe 
-X_test,  y_test  = make_sequences(test_df["adjclose"],  lookback = 60, lookahead=1) #Make sequences from test dataframe
+    X_train, y_train = make_sequences(train_df["adjclose"], lookback = 60, lookahead=1) #Make sequences from train dataframe 
+    X_test,  y_test  = make_sequences(test_df["adjclose"],  lookback = 60, lookahead=1) #Make sequences from test dataframe
 
 
-print("Train:", X_train.shape, y_train.shape) # Print the shape of the training sequences
-print("Test :", X_test.shape, y_test.shape) # Print the shape of the testing sequences
+    print("Train:", X_train.shape, y_train.shape) # Print the shape of the training sequences
+    print("Test :", X_test.shape, y_test.shape) # Print the shape of the testing sequences
 
 # Getting User inputs to buid the model.
-print ("Choose a model  :\n 1:LSTM \n 2:GRU \n 3:RNN")
-modeltype = int(input("Enter the model No: ")) # What DL model that the program should build.
-no_layers = int (input("Enter No of Model Layers: ")) # number of layer should be there in the model.
-Layer_size = int (input ("Enter Layer Size: ")) # this is typically how many neurons are there per a layer.
-no_epoches = int (input("Enter No of epoches: ")) # This decides how many time the model go though the data.
-batch = int (input("Enter batch size: ")) # How many samples should the model process in each epoch
+    print ("Choose a model  :\n 1:LSTM \n 2:GRU \n 3:RNN")
+    modeltype = int(input("Enter the model No: ")) # What DL model that the program should build.
+    no_layers = int (input("Enter No of Model Layers: ")) # number of layer should be there in the model.
+    Layer_size = int (input ("Enter Layer Size: ")) # this is typically how many neurons are there per a layer.
+    no_epoches = int (input("Enter No of epoches: ")) # This decides how many time the model go though the data.
+    batch = int (input("Enter batch size: ")) # How many samples should the model process in each epoch
 
 # Based on the user input decide with model.
-if modeltype == 1:
-    Mtype = LSTM
-    name = "LSTM"
-elif modeltype ==2:
-    Mtype = GRU
-    name = "GRU"
-else:
-    Mtype= SimpleRNN
-    name = "RNN"
+    if modeltype == 1:
+        Mtype = LSTM
+        name = "LSTM"
+    elif modeltype ==2:
+        Mtype = GRU
+        name = "GRU"
+    else:
+        Mtype= SimpleRNN
+        name = "RNN"
 
 
 
-lookback = X_train.shape[1] # This assign how many time steps to look back.
+    lookback = X_train.shape[1] # This assign how many time steps to look back.
 # This passes the user inputs to the model and this will create a model according to that
-model =build_the_model (Mtype, lookback=lookback,
+    model =build_the_model (Mtype, lookback=lookback,
                         n_layers= no_layers,
                           units=Layer_size, dropout=0.3) 
 # Early stopping: stop training if validation loss doesn't improve for 20 epochs
 # and restore the model weights from the best epoch
-early_stop = tf.keras.callbacks.EarlyStopping(
-    monitor="val_loss",
-    patience=20,
-    restore_best_weights=True
-)
+    early_stop = tf.keras.callbacks.EarlyStopping(
+        monitor="val_loss",
+        patience=20,
+        restore_best_weights=True
+    )
 #This is the training process
-history = model.fit(
-    X_train, y_train, # this input features and target values. Model will learn from it.
-    epochs=no_epoches, #This tells the model how many times it has to go through the data
-    batch_size=batch, # Instead of training the whole data set at once it group samples.
-    validation_data=(X_test, y_test), # Va;idate the predictions with test data
-    callbacks=[early_stop], # Call the early_stop function that we create earlier to save time 
-    verbose=1 # This controls how much info is printed while training
-)
-y_pred = model.predict(X_test).ravel() # Get the predicted prices.
+    history = model.fit(
+        X_train, y_train, # this input features and target values. Model will learn from it.
+        epochs=no_epoches, #This tells the model how many times it has to go through the data
+        batch_size=batch, # Instead of training the whole data set at once it group samples.
+        validation_data=(X_test, y_test), # Va;idate the predictions with test data
+        callbacks=[early_stop], # Call the early_stop function that we create earlier to save time 
+        verbose=1 # This controls how much info is printed while training
+    )
+    y_pred = model.predict(X_test).ravel() # Get the predicted prices.
 
-evaluate_and_report(model, X_train, y_train, X_test, y_test, model_name=name) # evaluate the model.
+    evaluate_and_report(model, X_train, y_train, X_test, y_test, model_name=name) # evaluate the model.
 
 # Plot Actual vs predicted prices to see how accurate the predictions are.
-plt.figure()
-plt.plot(y_test, label="Actual", color = "blue") # test data
-plt.plot(y_pred, label="Predicted", color = "red") # predicted data
-plt.xlabel("Time (test samples)"); plt.ylabel("Price $") # x axis label
-plt.legend(); plt.title("Actual vs Predicted (Test)") # Legend and the title 
-plt.tight_layout(); plt.show()
+    plt.figure()
+    plt.plot(y_test, label="Actual", color = "blue") # test data
+    plt.plot(y_pred, label="Predicted", color = "red") # predicted data
+    plt.xlabel("Time (test samples)"); plt.ylabel("Price $") # x axis label
+    plt.legend(); plt.title("Actual vs Predicted (Test)") # Legend and the title 
+    plt.tight_layout(); plt.show()

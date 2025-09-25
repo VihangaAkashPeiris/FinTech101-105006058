@@ -5,7 +5,7 @@ from datetime import datetime
 
 def load_data_yf(ticker: str ,start: str ,end: str, interval: str = "1d" , auto_adjust: bool = False) ->pd.DataFrame:
     df = yf.download (ticker,start = start, end = end , interval = interval, auto_adjust=auto_adjust, progress = False)
-    
+   # print (df.head())
     if df is None or df.empty:
         raise ValueError(f"no data returned for {ticker} between {start} and {end}.")
     # If yfinance returned MultiIndex columns, keep only this ticker (or flatten)
@@ -108,7 +108,7 @@ def split_by_date(df: pd.DataFrame, split_date : str):
 
 ##############################################################
 def split_by_random(df:pd.DataFrame, low =0.15, high =0.30, random_state=314):
-    rng = np.random.default_rng(random_state)
+    rng = np.random.default_202rng(random_state)
     test_size = float(rng.uniform(low, high)) 
 # Randomly assign rows to train/test using the chosen ratio
     mask = rng.random(len(df)) >= test_size       # True -> train, False -> test
