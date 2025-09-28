@@ -1,5 +1,6 @@
 from Taskc2 import Loading_and_processing
 from Taskc4 import build_the_model
+from Taskc4 import evaluate_and_report
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 import pandas as pd
@@ -152,6 +153,7 @@ if __name__ == "__main__":
     y_test_inv = t_scaler.inverse_transform(y_test.reshape(-1,1)).reshape(N, K) # inverse the y_test prices to its original price
     y_pred_inv = t_scaler.inverse_transform(y_pred.reshape(-1,1)).reshape(N, K) #inverse the y_pred prices to its original prices
     
+    evaluate_and_report(model, X_train, y_train, X_test, y_test, model_name=name)
     for i in range(kvalue): 
     # Plot
         plt.figure()
