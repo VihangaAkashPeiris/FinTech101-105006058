@@ -14,6 +14,7 @@ import yfinance as yf
 from datetime import datetime, timedelta
 from pathlib import Path
 from sklearn.preprocessing import MinMaxScaler
+import joblib
 
 # This is the function  " load_and_processing())"that fullfill all the requirements in the task C2.
 def Loading_and_processing(
@@ -183,6 +184,8 @@ def Loading_and_processing(
             if col in test_df.columns and len(test_df) > 0:
                 test_df[col] = scaler.transform(test_df[[col]])
             scalers[col] = scaler
+            
+        joblib.dump(scalers, "feature_scalers.pkl")
     else:
         scalers = {}
 
