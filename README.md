@@ -122,7 +122,7 @@ python SMS_Prob.py
 ```
 This script:
 - loads the trained classifier and vectorizer
-- fits a Ridge regression to produce a continuous spam likelihood between 0 and 1
+- fits a linear regression to produce a continuous spam likelihood between 0 and 1
 - exposes helper functions for later use
 
 You can skip this step and proceed directly to the final system if probability scoring is not required for marking.
