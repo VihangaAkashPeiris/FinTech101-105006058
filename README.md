@@ -1,219 +1,239 @@
-# SMS & Email Spam Detection — README
+# SMS Spam Detection System
 
-This guide explains how to **configure your environment (conda)**, **prepare data**, **train the models**, and **run predictions** for the multi‑stage spam system:
-**Classify → Score Probability → Cluster**.
+A complete SMS spam detection pipeline with three parts: classification, probability scoring, and spam category clustering. The project provides a single entry point for end users while keeping each stage modular for training and evaluation.
 
-> Works on macOS / Linux / Windows (PowerShell). Python 3.10+ recommended.
+## Highlights
 
----
+- **Classifier** (`SMS_Classifier.py`) trains a TF‑IDF + Logistic Regression model and saves it to `spam_model.joblib` for reuse.
+- **Probability scorer** (`SMS_Prob.py`) fits a Ridge regression on TF‑IDF features to produce a continuous spam likelihood in the range 0 to 1.
+- **Clustering model** (`cluster_model.py`) groups spam into topic categories with K‑Means and exposes a friendly interactive console for end‑to‑end use: class label, probabilities for Ham and Spam, and a cluster category if the message is spam.
+- **Data merge utility** (`merge.py`) builds the dedicated spam‑only dataset for clustering from the source CSV files.
 
-## 1) Environment Setup (conda)
-
-### 1.1 Create and activate a conda env
-```bash
-# Create an environment named 'spam-ml' with Python 3.10 (or 3.11)
-conda create -n spam-ml python=3.10 -y
-conda activate spam-ml
-```
-
-### 1.2 Install dependencies
-> We use scikit‑learn for ML, pandas for data, joblib for model persistence.
-```bash
-# Use pip inside the conda env
-python -m pip install --upgrade pip
-pip install pandas numpy scikit-learn joblib
-```
-
-**Optional (useful for notebooks/plots):**
-```bash
-pip install matplotlib jupyter
-```
-
-### 1.3 (Optional) Save / restore the environment
-```bash
-# Export exact package versions
-conda env export --name spam-ml --no-builds > environment.yml
-
-# Recreate later
-conda env create -f environment.yml
-conda activate spam-ml
-```
+> First run trains and saves the models. Later runs load the saved `.joblib` files and start immediately.
 
 ---
 
-## 2) Project Structure (expected)
+## 1. Project structure
 
 ```
-project/
+.
 ├─ Datasets/
-│  ├─ spam.csv                      # UCI
-│  ├─ spamassassin_spam_clean.csv   # SpamAssassin (spam-only)
-│  ├─ spam_d.csv                    # Large labelled SMS dataset
-│  ├─ spam_only_merged.csv          # (generated) spam-only merge for clustering
-├─ merge.py
-├─ SMS_Classifier.py
-├─ SMS_Prob.py
-├─ cluster_model.py
-└─ README.md
+│  ├─ spam.csv                    # UCI SMS Spam Collection
+│  ├─ spam_d.csv                  # Main training set for the classifier
+│  ├─ spamassassin_spam_clean.csv # SpamAssassin (spam only)
+│  ├─ Spam_cleaned.csv            # Output from merge.py (spam-only from UCI)
+│  └─ spam_only_merged.csv        # Output from merge.py (SpamAssassin + UCI spam)
+├─ SMS_Classifier.py              # Train + predict (Spam vs Ham)
+├─ SMS_Prob.py                    # Probability scoring on the SMS pipeline
+├─ cluster_model.py               # End‑to‑end interactive app + K‑Means clustering
+├─ merge.py                       # Build spam-only dataset for clustering
+├─ spam_model.joblib              # Saved classifier bundle (created on first run)
+└─ spam_kmeans_bundle.joblib      # Saved clustering bundle (created on first run)
 ```
 
-> If your dataset files are located elsewhere, update paths in the scripts (search for `Datasets/` and adjust).
+> Paths in the scripts assume the `Datasets/` folder exists in the project root.
 
 ---
 
-## 3) Data Preparation
+## 2. Requirements
 
-### 3.1 Build the spam-only corpus for clustering
-`merge.py` reads **UCI** and **SpamAssassin**, normalises columns/encoding, and writes **spam_only_merged.csv**.
+- Python 3.11
+- Packages
+  - `scikit-learn`
+  - `pandas`
+  - `numpy`
+  - `joblib`
+
+### Create the environment
 
 ```bash
-# From the project root
+# Create and activate a clean environment
+conda create -n sms-spam python=3.11 -y
+conda activate sms-spam
+
+# Install dependencies
+pip install --upgrade pip
+pip install scikit-learn pandas numpy joblib
+```
+
+If you prefer `requirements.txt`, create one with these lines:
+
+```
+scikit-learn
+pandas
+numpy
+joblib
+```
+
+Then install with:
+
+```bash
+pip install -r requirements.txt
+```
+
+---
+
+## 3. Datasets
+
+Place the CSV files under `Datasets/` exactly as shown in the structure above.
+
+- `spam_d.csv` is the **main training file** for `SMS_Classifier.py`.
+- `spam.csv` (UCI) and `spamassassin_spam_clean.csv` are used by `merge.py` to build the spam‑only corpus for clustering.
+- `merge.py` outputs:
+  - `Spam_cleaned.csv` (UCI spam only)
+  - `spam_only_merged.csv` (SpamAssassin spam + UCI spam)
+
+### Build the clustering dataset
+
+```bash
 python merge.py
 ```
 
-**What it does:**
-- Reads `Datasets/spam.csv` (latin‑1), keeps `['v1','v2']`, renames `v2→text`, filters `v1=='spam'` → `Spam_cleaned.csv`
-- Reads `Datasets/spamassassin_spam_clean.csv` (`text` column)
-- Concatenates both spam sources → `Datasets/spam_only_merged.csv`
-
-**Recommended enhancement (optional):**
-Deduplicate and drop empty rows inside `merge.py` before saving:
-```python
-df = df.dropna(subset=['text']).drop_duplicates(subset=['text'])
-```
+This will create or refresh `Datasets/Spam_cleaned.csv` and `Datasets/spam_only_merged.csv`.
 
 ---
 
-## 4) Training
+## 4. Training
 
-### 4.1 Train the SMS classifier (spam vs ham)
-`SMS_Classifier.py` loads `Datasets/spam_d.csv`, performs TF‑IDF, then trains **Logistic Regression**.
+You can train stage by stage, or simply run the final app which will train on the first run and load on later runs.
+
+### Option A. Train step by step
+
+1) **Train the classifier** (creates `spam_model.joblib`)
 
 ```bash
 python SMS_Classifier.py
 ```
+This script:
+- reads `Datasets/spam_d.csv`
+- splits into train and test using a fixed random state
+- vectorizes text with TF‑IDF
+- trains a Logistic Regression classifier
+- prints evaluation metrics
+- saves the trained objects to `spam_model.joblib`
 
-**Outputs (typical):**
-- Classification metrics (Accuracy/Precision/Recall/F1 + Confusion Matrix)
-- Persisted artifacts via **joblib** (vectorizer + model)
-
-### 4.2 Train the spam probability regressor
-`SMS_Prob.py` uses the same TF‑IDF features and trains **Ridge** regression to predict a continuous **spam score**.
+2) **Train the probability scorer**
 
 ```bash
 python SMS_Prob.py
 ```
-**Outputs:** RMSE, MAE, R² and a persisted regression model bundle (e.g., `sms_ridge.joblib`).
+This script imports the trained vectorizer and classifier, fits a Ridge regression for a continuous spam score, and exposes helper functions for later use.
 
-### 4.3 Train the spam clustering model
-`cluster_model.py` loads `Datasets/spam_only_merged.csv`, cleans text, vectorises, and fits **K‑Means**.
+3) **Train the clustering model** (creates `spam_kmeans_bundle.joblib`)
+
 ```bash
 python cluster_model.py
 ```
-**Outputs:**
-- Silhouette score
-- Saved bundle (e.g., `spam_kmeans_bundle.joblib`) containing vectorizer + kmeans
-- Top terms per cluster to help name categories
+On first run, this script vectorizes the spam‑only dataset and trains K‑Means. It stores a bundle with the vectorizer, K‑Means model, cluster keywords, and a category map for human‑readable labels.
+
+### Option B. One‑shot via the final app
+
+```bash
+python cluster_model.py
+```
+- If no `.joblib` files exist, the script trains and saves them.
+- If they exist, the script loads them and starts the interactive console immediately.
 
 ---
 
-## 5) Inference / Prediction
+## 5. Usage
 
-You can call the prediction helpers from Python **or** from the command line.
+### Interactive console (recommended)
 
-### 5.1 Python usage
+Run the final app:
+
+```bash
+python cluster_model.py
+```
+
+Sample session:
+
+```
+Enter message: Congratulations You have won a brand new iPhone Click the link to claim now
+Result: Spam
+Spam probability: 0.92
+Ham probability: 0.08
+Category: Prize promo / giveaway
+Top cluster keywords: win, claim, click, prize, iphone
+```
+
+Your exact labels and keywords may differ depending on the data and the category map defined inside `cluster_model.py`.
+
+### Programmatic use
 
 ```python
-# Example: classify and score a single SMS, then (if spam) cluster it
-from SMS_Classifier import predict_sms        # returns 'spam' or 'ham' (and/or prob depending on your function)
-from SMS_Prob import predict_message_reg      # returns a float score 0..1
-# If your cluster file exposes a prediction function:
-# from cluster_model import predict_cluster
-
-msg = "Congratulations! You won a $500 gift card. Click http://scam.link to claim now"
-pred_label = predict_sms(msg)
-score = predict_message_reg(msg)
-
-print("Label:", pred_label)
-print("Score:", round(score, 3))
-
-if pred_label.lower() == "spam":
-    # If you expose a 'predict_cluster' function in cluster_model.py:
-    # cluster_id, cluster_name = predict_cluster(msg)
-    # print("Cluster:", cluster_id, cluster_name)
-    pass
-```
-
-### 5.2 One‑liners from the shell
-
-> Replace the model and vectorizer names with the exact filenames produced by your scripts if needed.
-
-**Classify:**
-```bash
-python - <<'PY'
-from SMS_Classifier import predict_sms
-print(predict_sms("Free entry in 2 a weekly competition to win cash! Txt WIN to 80086"))
-PY
-```
-
-**Score probability:**
-```bash
-python - <<'PY'
+from SMS_Classifier import train_sms_model, predict_sms
 from SMS_Prob import predict_message_reg
-print(predict_message_reg("Low premium life insurance quotes available today"))
-PY
-```
 
-**Cluster (if prediction helper is defined):**
-```bash
-python - <<'PY'
-# from cluster_model import predict_cluster
-# print(predict_cluster("Verify your bank account by following this secure link"))
-print("Add predict_cluster(...) in cluster_model.py to enable CLI clustering.")
-PY
-```
+# Train or load the classifier
+vectorizer, clf, *_ = train_sms_model()
 
----
+# Predict class
+msg = "Your package is on hold. Pay customs fee now to release it."
+message, label = predict_sms(vectorizer, clf, msg)
 
-## 6) Reproducibility & Tips
-
-- **Random seeds:** For deterministic results, set `random_state` in `train_test_split`, `LogisticRegression`, and `KMeans`.
-- **Vocabulary size:** `TfidfVectorizer(max_features=15000)` is a good balance for speed vs nuance.
-- **Encodings:** Use `encoding='latin-1'` for `spam.csv` and `utf-8` for others.
-- **Artifacts:** Keep `*.joblib` files under `models/` (recommended). Example:
-```
-models/
-├─ vectorizer.joblib
-├─ sms_logreg.joblib
-├─ sms_ridge.joblib
-└─ spam_kmeans_bundle.joblib
-```
-- **Thresholding:** Use the regression score or classifier `predict_proba` to set business‑specific thresholds for quarantine/allow.
-
----
-
-## 7) Export README to PDF (optional)
-
-If you have **pandoc** installed:
-```bash
-# macOS (brew) or Windows (choco) install pandoc if needed
-# brew install pandoc
-# choco install pandoc
-
-pandoc README.md -o README.pdf
+# Probability score
+labels, score = predict_message_reg(msg)   # score is between 0 and 1
 ```
 
 ---
 
-## 8) Troubleshooting
+## 6. Reproducibility and configuration
 
-- **ConvergenceWarning (LogisticRegression):**
-  - Increase `max_iter=1000` or standardise TF‑IDF options.
-- **Memory issues (TF‑IDF):**
-  - Reduce `max_features`, increase `min_df`, or sample data.
-- **Weird characters / � :**
-  - Recheck `encoding=` when reading CSVs.
-- **Cluster instability:**
-  - Set `n_init=50` or higher; review preprocessing regex.
-- **ImportError for predict functions:**
-  - Ensure `predict_sms(...)` and `predict_message_reg(...)` are defined and return a value in your scripts.
+- Train‑test split uses a fixed random state.
+- TF‑IDF options and model hyperparameters are defined in the scripts. You can adjust them at the top of each file.
+- The clustering `category_map` can be edited in `cluster_model.py` to rename clusters once you review the top keywords.
+
+---
+
+## 7. Evaluation
+
+The training scripts print standard metrics to the console. Typical examples include:
+
+```python
+from sklearn.metrics import classification_report, confusion_matrix
+
+print("Confusion Matrix:\n", confusion_matrix(y_test, y_pred))
+print("\nClassification Report:\n", classification_report(y_test, y_pred, target_names=["Ham", "Spam"]))
+```
+
+Add these lines during training if you want labeled output. The classifier script already includes similar prints.
+
+---
+
+## 8. Model files and version control
+
+- `spam_model.joblib`
+- `spam_kmeans_bundle.joblib`
+
+These files can grow large. Do not commit them to Git by default. Add a `.gitignore` entry like:
+
+```
+*.joblib
+```
+
+If you must version large binaries, use Git LFS.
+
+---
+
+## 9. Troubleshooting
+
+- **File not found**: Ensure the `Datasets/` folder exists and CSV file names match exactly.
+- **Unicode or parsing errors** on CSV load: use `encoding="latin-1"` as shown in the scripts.
+- **Package mismatch**: reinstall dependencies inside the clean environment shown above.
+- **Large files block a Git push**: either ignore `.joblib` files or configure Git LFS before pushing.
+
+---
+
+## 10. Acknowledgements
+
+- UCI SMS Spam Collection dataset
+- SpamAssassin public corpora
+
+Use these datasets in line with their respective licenses.
+
+---
+
+## 11. License
+
+Include your license of choice here. For coursework, clarify the terms of use if this repository is public.
