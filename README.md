@@ -156,9 +156,9 @@ Example session:
 Enter message: Congratulations! You have won a brand new iPhone. Click here to claim your prize.
 
 Result: Spam
-Spam probability: 0.94
-Ham probability: 0.06
-Category: Promotion / Giveaway
+Spam probability: 75.1%
+Ham probability: 24.9%
+Category: Finance / Insurance Offers
 ```
 
 The exact category label depends on the learned clusters and the category map in `cluster_model.py`.
