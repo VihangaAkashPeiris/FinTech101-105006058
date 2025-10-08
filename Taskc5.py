@@ -154,6 +154,7 @@ if __name__ == "__main__":
     y_pred_inv = t_scaler.inverse_transform(y_pred.reshape(-1,1)).reshape(N, K) #inverse the y_pred prices to its original prices
     
     evaluate_and_report(model, X_train, y_train, X_test, y_test, model_name=name)
+    
     for i in range(kvalue): 
     # Plot
         plt.figure()
