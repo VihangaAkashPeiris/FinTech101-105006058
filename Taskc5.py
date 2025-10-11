@@ -73,7 +73,7 @@ def multistep_and_multivariate (df:pd.DataFrame, lookback:int, lookahead:int, ta
 if __name__ == "__main__":
     # set inputs for the function.
     ticker = "CBA.AX"
-    start = "2020-01-01"
+    start = "2015-01-01"
     end   = "2025-01-01"
     test_ratio = 0.2
     use_scale = True
