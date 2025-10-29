@@ -1,0 +1,2 @@
+FeatureSet,Model,Accuracy,Precision,Recall,F1
+PriceOnly,LogReg,0.5037974683544304,0.5054945054945055,0.92,0.6524822695035462
