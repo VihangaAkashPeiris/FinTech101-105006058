@@ -14,10 +14,10 @@ DF = pd.read_csv(PATH, parse_dates=["date"]).sort_values("date").reset_index(dro
 #    Price block: simple returns, moving averages, momentum, short-window volatility, and RSI
 price_features = ["ret_1d", "ma_5", "ma_10", "mom_5", "vol_5", "RSI_14"]
 #    Sentiment blocks (shifted so they refer to yesterday’s info)
-vader_feats   = ["vader_mean_shifted", "vader_change_shifted"]
-finbert_feats = ["finbert_mean_shifted", "finbert_change_shifted"]
+vader_feats   = ["vader_mean_shifted"]
+finbert_feats = ["finbert_mean_shifted"]
 
-#    Convenient presets so We can compare configurations one at a time
+#    Convenient presetts so We can compare configurations one at a time
 feat_sets = {
     "PriceOnly": price_features,
     "Price+VADER": price_features + vader_feats,
@@ -27,7 +27,7 @@ feat_sets = {
 
 #  Choose ONE set to run now:
 #     Start simple, then add sentiment once the baseline is stable
-SET_NAME = "Price+VADER" # Could be changed according to feat_sets
+SET_NAME =  "Price+VADER"# Could be changed according to feat_sets
 FEATURES = feat_sets[SET_NAME]
 
 #  Build X, y
@@ -65,17 +65,19 @@ rec = recall_score(y_test, y_pred, zero_division=0)
 f1 = f1_score(y_test, y_pred, zero_division=0)
 cm = confusion_matrix(y_test, y_pred)
 
-print("\n================ Logistic Regression ================")
+print("\n============================================== Logistic Regression ================================================")
 print(f"Feature set: {SET_NAME}")
 print(f"Features   : {FEATURES}")
 print(f"Accuracy   : {acc:.3f}")
 print(f"Precision  : {prec:.3f}")
 print(f"Recall     : {rec:.3f}")
 print(f"F1         : {f1:.3f}")
+print("\n=====================================================================================================================")
 print("Confusion Matrix [TN FP; FN TP]:")
 print(cm)
 print("\nClassification report:")
 print(classification_report(y_test, y_pred, zero_division=0, digits=3))
+print("\n=====================================================================================================================")
 
 #  Save quick outputs 
 #    One-row summary for easy aggregation across runs
@@ -92,6 +94,7 @@ coef_path = f"Taskc7_evidence/logreg_coefs_{SET_NAME}.csv"
 coefs = pd.Series(lr.coef_[0], index=FEATURES).sort_values(ascending=False)
 coefs.to_csv(coef_path, header=["coefficient"])
 
-print(f"\nSaved metrics  → {summary_path}")
-print(f"Saved LR coefs → {coef_path}")
+print(f"\nSaved metrics  -> {summary_path}")
+print(f"Saved LR coefs -> {coef_path}")
 print(coefs.head(10))
+print("\n=====================================================================================================================")

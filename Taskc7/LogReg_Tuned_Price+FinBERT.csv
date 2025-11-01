@@ -1,0 +1,2 @@
+FeatureSet,Model,Accuracy,Precision,Recall,F1,Best_Threshold
+Price+FinBERT,LogisticRegression,0.5113924050632911,0.5089514066496164,0.995,0.6734348561759729,0.43999999999999984
