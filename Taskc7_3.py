@@ -14,8 +14,8 @@ DF = pd.read_csv(PATH, parse_dates=["date"]).sort_values("date").reset_index(dro
 #    Price block: simple returns, moving averages, momentum, short-window volatility, and RSI
 price_features = ["ret_1d", "ma_5", "ma_10", "mom_5", "vol_5", "RSI_14"]
 #    Sentiment blocks (shifted so they refer to yesterday’s info)
-vader_feats   = ["vader_mean_shifted"]
-finbert_feats = ["finbert_mean_shifted"]
+vader_feats   = ["vader_mean_shifted", "vader_change_shifted"]
+finbert_feats = ["finbert_mean_shifted", "finbert_change_shifted"]
 
 #    Convenient presetts so We can compare configurations one at a time
 feat_sets = {
